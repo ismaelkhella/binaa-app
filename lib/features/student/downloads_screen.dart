@@ -110,6 +110,7 @@ class _DownloadItem extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
+    final manager = ref.watch(downloadManagerProvider);
     final sizeStr = (video.sizeInBytes / (1024 * 1024)).toStringAsFixed(1);
 
     return Card(
@@ -167,9 +168,24 @@ class _DownloadItem extends ConsumerWidget {
                             style: TextStyle(color: AppColors.danger, fontSize: 10),
                           ),
                         if (video.status == 1)
-                          const Text(
-                            'جاري التحميل...',
-                            style: TextStyle(color: AppColors.primary, fontSize: 10),
+                          StreamBuilder<Map<String, double>>(
+                            stream: manager.progressStream,
+                            builder: (context, snapshot) {
+                              double progress = manager.getProgress(video.videoId) ?? 0.0;
+                              if (snapshot.hasData && snapshot.data!.containsKey(video.videoId)) {
+                                progress = snapshot.data![video.videoId]!;
+                              }
+                              
+                              final percent = (progress * 100).toInt();
+                              return Text(
+                                progress <= 0 ? 'جاري البدء...' : 'جاري التحميل... ($percent%)',
+                                style: const TextStyle(
+                                  color: AppColors.primary, 
+                                  fontSize: 10, 
+                                  fontWeight: FontWeight.bold
+                                ),
+                              );
+                            },
                           ),
                         if (video.lastPositionSec > 0 && video.status == 2)
                           Text(
