@@ -9,7 +9,7 @@ class AppConfig {
   /// Override with `flutter run --dart-define=API_BASE_URL=...`.
   static const String apiBaseUrl = String.fromEnvironment(
     'API_BASE_URL',
-    defaultValue: 'http://10.0.2.2:3000/api',
+    defaultValue: 'https://benaa-academy.org/api',
   );
 
   static const Duration connectTimeout = Duration(seconds: 15);

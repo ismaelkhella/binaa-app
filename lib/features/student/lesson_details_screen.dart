@@ -51,6 +51,7 @@ class _LessonDetailsScreenState extends ConsumerState<LessonDetailsScreen> {
   WebViewController? _webController;
   PlayerType _playerType = PlayerType.native;
   bool _initialized = false;
+  bool _isFullScreen = false;
   bool _isLocal = false;
   double _downloadProgress = -1;
   Duration _lastMarkDuration = Duration.zero;
@@ -82,9 +83,33 @@ class _LessonDetailsScreenState extends ConsumerState<LessonDetailsScreen> {
     });
   }
 
+  void _toggleFullScreen() {
+    setState(() {
+      _isFullScreen = !_isFullScreen;
+    });
+    if (_isFullScreen) {
+      SystemChrome.setPreferredOrientations([
+        DeviceOrientation.landscapeLeft,
+        DeviceOrientation.landscapeRight,
+      ]);
+      SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+    } else {
+      SystemChrome.setPreferredOrientations([
+        DeviceOrientation.portraitUp,
+      ]);
+      SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+    }
+  }
+
   void _listenToDownloads() {
-    _downloadSub =
-        ref.read(downloadManagerProvider).progressStream.listen((event) {
+    // Set initial progress if already downloading
+    final manager = ref.read(downloadManagerProvider);
+    final current = manager.getProgress(widget.videoId);
+    if (current != null) {
+      _downloadProgress = current;
+    }
+
+    _downloadSub = manager.progressStream.listen((event) {
       if (event.containsKey(widget.videoId) && mounted) {
         setState(() {
           _downloadProgress = event[widget.videoId]!;
@@ -142,6 +167,11 @@ class _LessonDetailsScreenState extends ConsumerState<LessonDetailsScreen> {
     _controller?.removeListener(_onTick);
     _controller?.dispose();
     _ytController?.dispose();
+
+    // Reset orientation
+    SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
+    SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+
     super.dispose();
   }
 
@@ -468,11 +498,23 @@ class _LessonDetailsScreenState extends ConsumerState<LessonDetailsScreen> {
     final streamInfo = ref.watch(streamTokenProvider(widget.videoId));
     final downloadInfo = ref.watch(downloadStatusProvider(widget.videoId));
 
+    final download = downloadInfo.valueOrNull;
+    final isDownloaded = download?.status == 2;
+    final isDownloading = download?.status == 1;
+
+    // If it's downloading but we don't have progress yet, show 0
+    double displayProgress = _downloadProgress;
+    if (isDownloading && displayProgress < 0) {
+      displayProgress = 0;
+    }
+
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('مشغل الدروس'),
-        centerTitle: true,
-      ),
+      appBar: _isFullScreen
+          ? null
+          : AppBar(
+              title: const Text('مشغل الدروس'),
+              centerTitle: true,
+            ),
       body: details.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (err, stack) => Center(
@@ -493,20 +535,31 @@ class _LessonDetailsScreenState extends ConsumerState<LessonDetailsScreen> {
           final isDownloaded = download?.status == 2;
           final isDownloading = download?.status == 1;
 
+          final player = _VideoPlayerArea(
+            controller: _controller,
+            ytController: _ytController,
+            webController: _webController,
+            playerType: _playerType,
+            initialized: _initialized,
+            watermark: data.watermark,
+            isLocal: _isLocal,
+            playbackRates: streamInfo.valueOrNull?.playbackRates,
+            isFullScreen: _isFullScreen,
+            onToggleFullScreen: _toggleFullScreen,
+          );
+
+          if (_isFullScreen) {
+            return Container(
+              color: Colors.black,
+              child: player,
+            );
+          }
+
           return SingleChildScrollView(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                _VideoPlayerArea(
-                  controller: _controller,
-                  ytController: _ytController,
-                  webController: _webController,
-                  playerType: _playerType,
-                  initialized: _initialized,
-                  watermark: data.watermark,
-                  isLocal: _isLocal,
-                  playbackRates: streamInfo.valueOrNull?.playbackRates,
-                ),
+                player,
                 Padding(
                   padding: const EdgeInsets.all(AppDimensions.lg),
                   child: Column(
@@ -517,7 +570,7 @@ class _LessonDetailsScreenState extends ConsumerState<LessonDetailsScreen> {
                       _ActionButtons(
                         video: data.video,
                         onDownload: _download,
-                        downloadProgress: _downloadProgress,
+                        downloadProgress: displayProgress,
                         isDownloaded: isDownloaded,
                         isDownloading: isDownloading,
                       ),
@@ -738,6 +791,8 @@ class _VideoPlayerArea extends StatefulWidget {
   final WatermarkInfo watermark;
   final bool isLocal;
   final List<double>? playbackRates;
+  final bool isFullScreen;
+  final VoidCallback onToggleFullScreen;
 
   const _VideoPlayerArea({
     this.controller,
@@ -748,6 +803,8 @@ class _VideoPlayerArea extends StatefulWidget {
     required this.watermark,
     required this.isLocal,
     this.playbackRates,
+    required this.isFullScreen,
+    required this.onToggleFullScreen,
   });
 
   @override
@@ -757,21 +814,39 @@ class _VideoPlayerArea extends StatefulWidget {
 class _VideoPlayerAreaState extends State<_VideoPlayerArea> {
   bool _showControls = true;
   Timer? _hideTimer;
-  bool _isFullScreen = false;
 
   @override
   void initState() {
     super.initState();
     _startHideTimer();
+    _setupYoutubeListener();
+  }
+
+  void _setupYoutubeListener() {
+    widget.ytController?.addListener(_ytListener);
+  }
+
+  void _ytListener() {
+    if (mounted &&
+        widget.ytController != null &&
+        widget.ytController!.value.isFullScreen != widget.isFullScreen) {
+      widget.onToggleFullScreen();
+    }
+  }
+
+  @override
+  void didUpdateWidget(_VideoPlayerArea oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.ytController != widget.ytController) {
+      oldWidget.ytController?.removeListener(_ytListener);
+      _setupYoutubeListener();
+    }
   }
 
   @override
   void dispose() {
     _hideTimer?.cancel();
-    if (_isFullScreen) {
-      SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
-      SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
-    }
+    widget.ytController?.removeListener(_ytListener);
     super.dispose();
   }
 
@@ -794,23 +869,8 @@ class _VideoPlayerAreaState extends State<_VideoPlayerArea> {
     });
   }
 
-  Future<void> _toggleFullScreen() async {
-    setState(() {
-      _isFullScreen = !_isFullScreen;
-    });
-
-    if (_isFullScreen) {
-      await SystemChrome.setPreferredOrientations([
-        DeviceOrientation.landscapeLeft,
-        DeviceOrientation.landscapeRight,
-      ]);
-      await SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
-    } else {
-      await SystemChrome.setPreferredOrientations([
-        DeviceOrientation.portraitUp,
-      ]);
-      await SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
-    }
+  void _toggleFullScreen() {
+    widget.onToggleFullScreen();
   }
 
   void _skipForward() {
@@ -865,11 +925,8 @@ class _VideoPlayerAreaState extends State<_VideoPlayerArea> {
       ],
     );
 
-    if (_isFullScreen) {
-      return Scaffold(
-        backgroundColor: Colors.black,
-        body: content,
-      );
+    if (widget.isFullScreen) {
+      return content;
     }
 
     return AspectRatio(
@@ -896,7 +953,7 @@ class _VideoPlayerAreaState extends State<_VideoPlayerArea> {
           showVideoProgressIndicator: true,
           progressIndicatorColor: AppColors.primary,
           onEnded: (meta) {
-            if (_isFullScreen) _toggleFullScreen();
+            if (widget.isFullScreen) _toggleFullScreen();
           },
         );
       case PlayerType.web:
@@ -929,7 +986,10 @@ class _VideoPlayerAreaState extends State<_VideoPlayerArea> {
               child: Stack(
                 alignment: Alignment.center,
                 children: [
-                  VideoPlayer(widget.controller!),
+                  AspectRatio(
+                    aspectRatio: widget.controller!.value.aspectRatio,
+                    child: VideoPlayer(widget.controller!),
+                  ),
                   // Overlay controls
                   AnimatedOpacity(
                     opacity: _showControls ? 1.0 : 0.0,
@@ -1026,7 +1086,7 @@ class _VideoPlayerAreaState extends State<_VideoPlayerArea> {
                                               const SizedBox(width: 16),
                                               IconButton(
                                                 icon: Icon(
-                                                  _isFullScreen
+                                                  widget.isFullScreen
                                                       ? Icons.fullscreen_exit
                                                       : Icons.fullscreen,
                                                   color: Colors.white,
@@ -1308,7 +1368,7 @@ class _ActionButtons extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final showProgress = isDownloading && downloadProgress >= 0;
+    final showProgress = isDownloading;
 
     return Column(
       children: [
@@ -1336,14 +1396,14 @@ class _ActionButtons extends StatelessWidget {
                         width: 16,
                         height: 16,
                         child: CircularProgressIndicator(
-                          value: downloadProgress > 0 ? downloadProgress : null,
+                          value: downloadProgress > 0.05 ? downloadProgress : null,
                           strokeWidth: 2,
                           color: Colors.white,
                         ),
                       )
                     : Icon(isDownloaded ? Icons.delete_outline : Icons.download_for_offline_outlined),
                 label: Text(showProgress
-                    ? (downloadProgress > 0 ? '${(downloadProgress * 100).toInt()}%' : 'بدء...')
+                    ? (downloadProgress > 0.05 ? '${(downloadProgress * 100).toInt()}%' : 'بدء...')
                     : (isDownloaded ? 'حذف من الجهاز' : 'تنزيل الدرس')),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: isDownloaded ? AppColors.danger : AppColors.primary,
