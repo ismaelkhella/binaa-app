@@ -506,9 +506,8 @@ class _LessonDetailsScreenState extends ConsumerState<LessonDetailsScreen> {
 
       // Add token if needed
       final isOurServer = finalUrl.contains(AppConfig.apiBaseUrl.replaceFirst('/api', ''));
-      final isMux = finalUrl.contains('stream.mux.com');
       
-      if (downloadToken != null && (isOurServer || isMux)) {
+      if (downloadToken != null && isOurServer) {
         final uri = Uri.tryParse(finalUrl);
         if (uri != null) {
           final query = Map<String, String>.from(uri.queryParameters);
