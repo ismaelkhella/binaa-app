@@ -63,6 +63,7 @@ class DownloadManager {
     String? unitName,
     String? thumbnail,
     int durationSec = 0,
+    DateTime? expiresAt,
     Map<String, String>? headers,
   }) async {
     final existing = await _storage.getDownload(videoId);
@@ -70,10 +71,9 @@ class DownloadManager {
       return;
     }
 
-    // Ensure we have a valid URL for background_downloader (it doesn't support HLS/m3u8)
-    if (url.contains('.m3u8')) {
-      debugPrint('Warning: background_downloader may not support .m3u8 directly');
-    }
+    // Ensure we have a valid URL for background_downloader
+    // Mux download URLs should use /highest.mp4 rendition for best quality
+    debugPrint('StartDownload URL: $url');
 
     final task = DownloadTask(
       taskId: videoId,
@@ -98,6 +98,7 @@ class DownloadManager {
       ..downloadedAt = DateTime.now()
       ..sizeInBytes = 0
       ..durationSec = durationSec
+      ..expiresAt = expiresAt
       ..status = 1;
 
     await _storage.saveDownload(downloadVideo);

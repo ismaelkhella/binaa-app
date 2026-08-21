@@ -69,58 +69,6 @@ class VideoRepository {
     return null;
   }
 
-  Future<void> downloadVideo(
-    String videoId,
-    String url, {
-    String? token,
-    required void Function(int received, int total) onProgress,
-  }) async {
-    final dir = await getApplicationDocumentsDirectory();
-    final path = '${dir.path}/v_$videoId.mp4';
-    
-    String finalUrl = url;
-    if (!finalUrl.startsWith('http')) {
-      final baseUrl = _dio.options.baseUrl.replaceFirst('/api', '');
-      finalUrl = '$baseUrl${finalUrl.startsWith('/') ? '' : '/'}$finalUrl';
-    }
-
-    // Try to get MP4 rendition for Mux
-    finalUrl = _resolveMuxDownloadUrl(finalUrl);
-
-    // Only add OUR download token if it's OUR server
-    final isOurServer = finalUrl.contains(_dio.options.baseUrl.replaceFirst('/api', ''));
-    if (token != null && token.isNotEmpty && isOurServer) {
-      final uri = Uri.tryParse(finalUrl);
-      if (uri != null) {
-        final query = Map<String, String>.from(uri.queryParameters);
-        query['token'] = token;
-        finalUrl = uri.replace(queryParameters: query).toString();
-      }
-    }
-
-    final response = await _dio.download(
-      finalUrl,
-      path,
-      onReceiveProgress: (received, total) {
-        onProgress(received, total);
-      },
-      options: Options(
-        responseType: ResponseType.bytes,
-        followRedirects: true,
-        // Clear default headers to avoid Mux rejecting the request
-        headers: {},
-        validateStatus: (status) => status != null && status < 500,
-      ),
-    );
-
-    if (response.statusCode != 200) {
-      // Clean up failed file
-      final file = File(path);
-      if (await file.exists()) await file.delete();
-      throw Exception('فشل تحميل الفيديو: ${response.statusCode}');
-    }
-  }
-
   Future<void> deleteDownloadedVideo(String videoId) async {
     final download = await _offline.getDownload(videoId);
     if (download != null && download.localPath.isNotEmpty) {
@@ -131,7 +79,7 @@ class VideoRepository {
     }
   }
 
-  String _resolveMuxDownloadUrl(String url) {
+  String resolveMuxDownloadUrl(String url) {
     final uri = Uri.tryParse(url);
     if (uri == null || !uri.host.contains('stream.mux.com')) return url;
 
@@ -144,9 +92,9 @@ class VideoRepository {
       return url; // Already mp4
     } else if (last.endsWith('.m3u8')) {
       final playbackId = last.substring(0, last.length - '.m3u8'.length);
-      newLast = '$playbackId/high.mp4';
+      newLast = '$playbackId/highest.mp4';
     } else {
-      newLast = '$last/high.mp4';
+      newLast = '$last/highest.mp4';
     }
 
     return uri.replace(path: '/${[...segments, newLast].join('/')}').toString();

@@ -295,27 +295,6 @@ class _LessonDetailsScreenState extends ConsumerState<LessonDetailsScreen> {
         path.contains('.mkv');
   }
 
-  String _resolveMuxDownloadUrl(String url) {
-    final uri = Uri.tryParse(url);
-    if (uri == null || !uri.host.contains('stream.mux.com')) return url;
-
-    final segments = List<String>.from(uri.pathSegments);
-    if (segments.isEmpty) return url;
-
-    final last = segments.removeLast();
-    String newLast;
-    if (last.endsWith('.mp4')) {
-      return url; // Already mp4
-    } else if (last.endsWith('.m3u8')) {
-      final playbackId = last.substring(0, last.length - '.m3u8'.length);
-      newLast = '$playbackId/high.mp4';
-    } else {
-      newLast = '$last/high.mp4';
-    }
-
-    return uri.replace(path: '/${[...segments, newLast].join('/')}').toString();
-  }
-
   void _onTick() async {
     if (!mounted) return;
     final c = _controller;
@@ -454,7 +433,23 @@ class _LessonDetailsScreenState extends ConsumerState<LessonDetailsScreen> {
           ),
         );
         if (action == 'resume') {
-          await ref.read(downloadManagerProvider).resumeDownload(widget.videoId);
+          final download = await ref.read(offlineStorageProvider).getDownload(widget.videoId);
+          bool needsRefresh = false;
+          if (download?.expiresAt != null) {
+            final now = DateTime.now();
+            if (download!.expiresAt!.difference(now).inMinutes < 10) {
+              needsRefresh = true;
+            }
+          }
+
+          if (needsRefresh) {
+            debugPrint('Token expired or about to expire, refreshing before resume');
+            // Cancel old and start new (background_downloader will handle partial if file exists)
+            await ref.read(downloadManagerProvider).cancelDownload(widget.videoId);
+            await _download(); 
+          } else {
+            await ref.read(downloadManagerProvider).resumeDownload(widget.videoId);
+          }
         } else if (action == 'pause') {
           await ref.read(downloadManagerProvider).pauseDownload(widget.videoId);
         } else if (action == 'cancel') {
@@ -485,10 +480,9 @@ class _LessonDetailsScreenState extends ConsumerState<LessonDetailsScreen> {
     if (url == null) return;
 
     // Fetch download token
-    String? downloadToken;
+    DownloadToken? downloadToken;
     try {
-      final tokenData = await ref.read(videoRepositoryProvider).downloadToken(widget.videoId);
-      downloadToken = tokenData.token;
+      downloadToken = await ref.read(videoRepositoryProvider).downloadToken(widget.videoId);
     } catch (_) {}
 
     setState(() => _downloadProgress = 0);
@@ -501,7 +495,7 @@ class _LessonDetailsScreenState extends ConsumerState<LessonDetailsScreen> {
       }
 
       // Try to get MP4 rendition for Mux
-      finalUrl = _resolveMuxDownloadUrl(finalUrl);
+      finalUrl = ref.read(videoRepositoryProvider).resolveMuxDownloadUrl(finalUrl);
       debugPrint('Downloading video from URL: $finalUrl');
 
       // Add token if needed
@@ -511,7 +505,7 @@ class _LessonDetailsScreenState extends ConsumerState<LessonDetailsScreen> {
         final uri = Uri.tryParse(finalUrl);
         if (uri != null) {
           final query = Map<String, String>.from(uri.queryParameters);
-          query['token'] = downloadToken;
+          query['token'] = downloadToken.token;
           finalUrl = uri.replace(queryParameters: query).toString();
         }
       }
@@ -525,7 +519,7 @@ class _LessonDetailsScreenState extends ConsumerState<LessonDetailsScreen> {
         subHeader: res.video.subHeader,
         unitName: res.video.unitName,
         durationSec: res.video.durationSec,
-
+        expiresAt: downloadToken?.expiresAt,
       );
 
       ScaffoldMessenger.of(context).showSnackBar(

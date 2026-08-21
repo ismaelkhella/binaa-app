@@ -28,6 +28,8 @@ class DownloadedVideo {
 
   String? checksum;
   
+  DateTime? expiresAt;
+
   // Status: 0=pending, 1=downloading, 2=completed, 3=failed
   int status = 0;
 }
