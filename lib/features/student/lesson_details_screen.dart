@@ -295,6 +295,27 @@ class _LessonDetailsScreenState extends ConsumerState<LessonDetailsScreen> {
         path.contains('.mkv');
   }
 
+  String _resolveMuxDownloadUrl(String url) {
+    final uri = Uri.tryParse(url);
+    if (uri == null || !uri.host.contains('stream.mux.com')) return url;
+
+    final segments = List<String>.from(uri.pathSegments);
+    if (segments.isEmpty) return url;
+
+    final last = segments.removeLast();
+    String newLast;
+    if (last.endsWith('.mp4')) {
+      return url; // Already mp4
+    } else if (last.endsWith('.m3u8')) {
+      final playbackId = last.substring(0, last.length - '.m3u8'.length);
+      newLast = '$playbackId/high.mp4';
+    } else {
+      newLast = '$last/high.mp4';
+    }
+
+    return uri.replace(path: '/${[...segments, newLast].join('/')}').toString();
+  }
+
   void _onTick() async {
     final c = _controller;
     if (c == null) return;
@@ -386,13 +407,20 @@ class _LessonDetailsScreenState extends ConsumerState<LessonDetailsScreen> {
           ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم حذف الدرس من التحميلات')));
         }
       } else if (download.status == 1) {
-        // Currently downloading, allow pause/cancel
+        // Currently downloading, allow pause/cancel/resume
+        final isPaused = download.status == 1 && _downloadProgress == -2; // We can use a special value for paused if we want, or check task status
+        
         final action = await showModalBottomSheet<String>(
           context: context,
           builder: (context) => SafeArea(
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
+                ListTile(
+                  leading: const Icon(Icons.play_arrow),
+                  title: const Text('استئناف التحميل'),
+                  onTap: () => Navigator.pop(context, 'resume'),
+                ),
                 ListTile(
                   leading: const Icon(Icons.pause),
                   title: const Text('إيقاف مؤقت'),
@@ -407,7 +435,9 @@ class _LessonDetailsScreenState extends ConsumerState<LessonDetailsScreen> {
             ),
           ),
         );
-        if (action == 'pause') {
+        if (action == 'resume') {
+          await ref.read(downloadManagerProvider).resumeDownload(widget.videoId);
+        } else if (action == 'pause') {
           await ref.read(downloadManagerProvider).pauseDownload(widget.videoId);
         } else if (action == 'cancel') {
           await ref.read(downloadManagerProvider).cancelDownload(widget.videoId);
@@ -453,13 +483,7 @@ class _LessonDetailsScreenState extends ConsumerState<LessonDetailsScreen> {
       }
 
       // Try to get MP4 rendition for Mux
-      if (finalUrl.contains('stream.mux.com')) {
-        if (finalUrl.endsWith('.m3u8')) {
-          finalUrl = finalUrl.replaceAll('.m3u8', '/high.mp4');
-        } else if (!finalUrl.endsWith('.mp4')) {
-          finalUrl = '${finalUrl.endsWith('/') ? finalUrl : '$finalUrl/'}high.mp4';
-        }
-      }
+      finalUrl = _resolveMuxDownloadUrl(finalUrl);
 
       // Add token if needed
       final isOurServer = finalUrl.contains(AppConfig.apiBaseUrl.replaceFirst('/api', ''));

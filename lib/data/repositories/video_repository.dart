@@ -85,17 +85,7 @@ class VideoRepository {
     }
 
     // Try to get MP4 rendition for Mux
-    // If mp4_support: "standard" is enabled, Mux provides:
-    // https://stream.mux.com/{PLAYBACK_ID}/{RESOLUTION}.mp4
-    if (finalUrl.contains('stream.mux.com')) {
-      if (finalUrl.endsWith('.m3u8')) {
-        // Replace manifest with high quality mp4
-        finalUrl = finalUrl.replaceAll('.m3u8', '/high.mp4');
-      } else if (!finalUrl.endsWith('.mp4')) {
-        // If it's just a playback ID URL, append /high.mp4
-        finalUrl = '${finalUrl.endsWith('/') ? finalUrl : '$finalUrl/'}high.mp4';
-      }
-    }
+    finalUrl = _resolveMuxDownloadUrl(finalUrl);
 
     // Only add OUR download token if it's OUR server
     final isOurServer = finalUrl.contains(_dio.options.baseUrl.replaceFirst('/api', ''));
@@ -135,5 +125,26 @@ class VideoRepository {
         await file.delete();
       }
     }
+  }
+
+  String _resolveMuxDownloadUrl(String url) {
+    final uri = Uri.tryParse(url);
+    if (uri == null || !uri.host.contains('stream.mux.com')) return url;
+
+    final segments = List<String>.from(uri.pathSegments);
+    if (segments.isEmpty) return url;
+
+    final last = segments.removeLast();
+    String newLast;
+    if (last.endsWith('.mp4')) {
+      return url; // Already mp4
+    } else if (last.endsWith('.m3u8')) {
+      final playbackId = last.substring(0, last.length - '.m3u8'.length);
+      newLast = '$playbackId/high.mp4';
+    } else {
+      newLast = '$last/high.mp4';
+    }
+
+    return uri.replace(path: '/${[...segments, newLast].join('/')}').toString();
   }
 }
