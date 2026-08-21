@@ -317,6 +317,7 @@ class _LessonDetailsScreenState extends ConsumerState<LessonDetailsScreen> {
   }
 
   void _onTick() async {
+    if (!mounted) return;
     final c = _controller;
     if (c == null) return;
     final pos = c.value.position;
@@ -341,6 +342,7 @@ class _LessonDetailsScreenState extends ConsumerState<LessonDetailsScreen> {
   }
 
   void _saveProgress() async {
+    if (!mounted) return;
     final c = _controller;
     if (c == null || !c.value.isInitialized) return;
 
@@ -484,6 +486,7 @@ class _LessonDetailsScreenState extends ConsumerState<LessonDetailsScreen> {
 
       // Try to get MP4 rendition for Mux
       finalUrl = _resolveMuxDownloadUrl(finalUrl);
+      debugPrint('Downloading video from URL: $finalUrl');
 
       // Add token if needed
       final isOurServer = finalUrl.contains(AppConfig.apiBaseUrl.replaceFirst('/api', ''));
