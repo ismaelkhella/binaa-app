@@ -526,7 +526,7 @@ class _LessonDetailsScreenState extends ConsumerState<LessonDetailsScreen> {
         subHeader: res.video.subHeader,
         unitName: res.video.unitName,
         durationSec: res.video.durationSec,
-        headers: headers,
+
       );
 
       ScaffoldMessenger.of(context).showSnackBar(
