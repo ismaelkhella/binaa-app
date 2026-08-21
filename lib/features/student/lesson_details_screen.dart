@@ -320,6 +320,9 @@ class _LessonDetailsScreenState extends ConsumerState<LessonDetailsScreen> {
     if (!mounted) return;
     final c = _controller;
     if (c == null) return;
+    
+    // Check if disposed again after getting controller
+    if (!mounted) return;
     final pos = c.value.position;
     
     // Save locally on each tick for responsiveness
@@ -327,15 +330,20 @@ class _LessonDetailsScreenState extends ConsumerState<LessonDetailsScreen> {
 
     // Save to Offline DB if it's a download
     if (pos.inSeconds % 5 == 0) {
-      ref.read(offlineStorageProvider).updatePosition(widget.videoId, pos.inSeconds);
+      // Use ref.read outside the async gap if possible or check mounted
+      if (mounted) {
+        ref.read(offlineStorageProvider).updatePosition(widget.videoId, pos.inSeconds);
+      }
     }
 
     if (pos.inSeconds - _lastMarkDuration.inSeconds >= 30) {
       _lastMarkDuration = pos;
       try {
-        final r = await ref.read(videoRepositoryProvider).markViewed(widget.videoId);
-        if (r.triggerQuiz != null && mounted) {
-          _showQuiz(r.triggerQuiz!);
+        if (mounted) {
+          final r = await ref.read(videoRepositoryProvider).markViewed(widget.videoId);
+          if (r.triggerQuiz != null && mounted) {
+            _showQuiz(r.triggerQuiz!);
+          }
         }
       } catch (_) {/* ignore */}
     }
@@ -343,10 +351,16 @@ class _LessonDetailsScreenState extends ConsumerState<LessonDetailsScreen> {
 
   void _saveProgress() async {
     if (!mounted) return;
+    
+    // Cache ref and videoId to avoid accessing them if widget is disposed during async work
+    final currentRef = ref;
+    final currentVideoId = widget.videoId;
+    
     final c = _controller;
     if (c == null || !c.value.isInitialized) return;
 
-    final details = ref.read(lessonDetailsProvider(widget.videoId)).valueOrNull;
+    final detailsAsync = currentRef.read(lessonDetailsProvider(currentVideoId));
+    final details = detailsAsync.valueOrNull;
     if (details == null) return;
 
     final pos = c.value.position;
@@ -357,7 +371,7 @@ class _LessonDetailsScreenState extends ConsumerState<LessonDetailsScreen> {
     final timeLeftMin = (total.inSeconds - pos.inSeconds) ~/ 60;
 
     final lastLesson = ContinueLearning(
-      videoId: widget.videoId,
+      videoId: currentVideoId,
       videoTitle: details.video.title,
       subjectName: details.video.subHeader,
       unitName: details.video.unitName,
@@ -367,7 +381,9 @@ class _LessonDetailsScreenState extends ConsumerState<LessonDetailsScreen> {
       progressPercent: progressPercent,
     );
 
-    await ref.read(cacheStorageProvider).saveLastLesson(lastLesson.toJson());
+    if (mounted) {
+      await currentRef.read(cacheStorageProvider).saveLastLesson(lastLesson.toJson());
+    }
   }
 
   void _showQuiz(TriggerQuiz quiz) {
@@ -490,11 +506,18 @@ class _LessonDetailsScreenState extends ConsumerState<LessonDetailsScreen> {
 
       // Add token if needed
       final isOurServer = finalUrl.contains(AppConfig.apiBaseUrl.replaceFirst('/api', ''));
-      Map<String, String> headers = {};
-      if (isOurServer && downloadToken != null) {
-        final connector = finalUrl.contains('?') ? '&' : '?';
-        finalUrl = '$finalUrl${connector}token=$downloadToken';
+      final isMux = finalUrl.contains('stream.mux.com');
+      
+      if (downloadToken != null && (isOurServer || isMux)) {
+        final uri = Uri.tryParse(finalUrl);
+        if (uri != null) {
+          final query = Map<String, String>.from(uri.queryParameters);
+          query['token'] = downloadToken;
+          finalUrl = uri.replace(queryParameters: query).toString();
+        }
       }
+
+      debugPrint('Final download URL: $finalUrl');
 
       await ref.read(downloadManagerProvider).startDownload(
         videoId: widget.videoId,

@@ -87,11 +87,16 @@ class VideoRepository {
     // Try to get MP4 rendition for Mux
     finalUrl = _resolveMuxDownloadUrl(finalUrl);
 
-    // Only add OUR download token if it's OUR server
+    // Only add OUR download token if it's OUR server or Mux
     final isOurServer = finalUrl.contains(_dio.options.baseUrl.replaceFirst('/api', ''));
-    if (isOurServer && token != null && token.isNotEmpty) {
-      final connector = finalUrl.contains('?') ? '&' : '?';
-      finalUrl = '$finalUrl${connector}token=$token';
+    final isMux = finalUrl.contains('stream.mux.com');
+    if (token != null && token.isNotEmpty && (isOurServer || isMux)) {
+      final uri = Uri.tryParse(finalUrl);
+      if (uri != null) {
+        final query = Map<String, String>.from(uri.queryParameters);
+        query['token'] = token;
+        finalUrl = uri.replace(queryParameters: query).toString();
+      }
     }
 
     final response = await _dio.download(
