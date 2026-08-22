@@ -4,8 +4,6 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'core/theme/app_theme.dart';
-import 'features/auth/auth_controller.dart';
-import 'features/auth/welcome_screen.dart';
 import 'router.dart';
 
 class BinaAcademyApp extends ConsumerStatefulWidget {
@@ -46,38 +44,5 @@ class _BinaAcademyAppState extends ConsumerState<BinaAcademyApp> {
         );
       },
     );
-  }
-}
-
-class AuthBootGate extends ConsumerWidget {
-  final Widget child;
-  const AuthBootGate({super.key, required this.child});
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final auth = ref.watch(authControllerProvider);
-    if (auth.isLoading) {
-      return MaterialApp(
-        debugShowCheckedModeBanner: false,
-        theme: AppTheme.dark(),
-        locale: const Locale('ar'),
-        supportedLocales: const [Locale('ar'), Locale('en')],
-        localizationsDelegates: const [
-          GlobalMaterialLocalizations.delegate,
-          GlobalWidgetsLocalizations.delegate,
-          GlobalCupertinoLocalizations.delegate,
-        ],
-        home: const _InitialSplash(),
-      );
-    }
-    return child;
-  }
-}
-
-class _InitialSplash extends StatelessWidget {
-  const _InitialSplash();
-  @override
-  Widget build(BuildContext context) {
-    return const WelcomeScreen(); // For now show welcome during initial build.
   }
 }

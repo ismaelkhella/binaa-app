@@ -10,6 +10,7 @@ import 'features/auth/auth_controller.dart';
 import 'features/auth/login_screen.dart';
 import 'features/auth/profile_setup_screen.dart';
 import 'features/auth/register_screen.dart';
+import 'features/auth/splash_screen.dart';
 import 'features/auth/welcome_screen.dart';
 import 'features/student/lesson_details_screen.dart';
 import 'features/student/downloads_screen.dart';
@@ -23,19 +24,20 @@ final routerProvider = Provider<GoRouter>((ref) {
   ref.onDispose(notifier.dispose);
 
   return GoRouter(
-    initialLocation: '/',
+    initialLocation: '/splash',
     refreshListenable: notifier,
     redirect: (context, state) {
       final auth = ref.read(authControllerProvider);
       final admin = ref.read(adminControllerProvider);
+      final loc = state.matchedLocation;
 
       if (auth.isLoading || auth.hasError || admin.isLoading) {
-        return null; // show splash during initial resolution
+        // Hold on the splash screen while the persisted session resolves.
+        return loc == '/splash' ? null : '/splash';
       }
 
       final user = auth.valueOrNull;
       final session = admin.valueOrNull;
-      final loc = state.matchedLocation;
       final isAdminPath = loc.startsWith('/admin');
       final isAuthPath = loc == '/welcome' ||
           loc == '/login' ||
@@ -64,12 +66,14 @@ final routerProvider = Provider<GoRouter>((ref) {
       if (loc == '/profile-setup' ||
           loc == '/welcome' ||
           loc == '/login' ||
-          loc == '/register') {
+          loc == '/register' ||
+          loc == '/splash') {
         return '/';
       }
       return null;
     },
     routes: [
+      GoRoute(path: '/splash', builder: (_, _) => const SplashScreen()),
       GoRoute(path: '/welcome', builder: (_, _) => const WelcomeScreen()),
       GoRoute(path: '/login', builder: (_, _) => const LoginScreen()),
       GoRoute(path: '/register', builder: (_, _) => const RegisterScreen()),

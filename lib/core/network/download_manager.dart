@@ -45,13 +45,16 @@ class DownloadManager {
 
     if (status == TaskStatus.complete) {
       _currentProgress.remove(taskId);
-      await _finalizeDownload(taskId);
+      await _finalizeDownload(update.task);
     } else if (status == TaskStatus.failed || status == TaskStatus.notFound) {
       _currentProgress.remove(taskId);
       await _handleFailure(taskId);
     } else if (status == TaskStatus.canceled) {
+      // Storage cleanup for cancellation is handled synchronously in
+      // cancelDownload() itself. Deleting here too would race a later
+      // restart that reuses the same taskId (e.g. resume-with-refresh),
+      // potentially deleting the newly started download's row.
       _currentProgress.remove(taskId);
-      await _storage.deleteDownload(taskId);
     }
   }
 
@@ -64,7 +67,6 @@ class DownloadManager {
     String? thumbnail,
     int durationSec = 0,
     DateTime? expiresAt,
-    Map<String, String>? headers,
   }) async {
     final existing = await _storage.getDownload(videoId);
     if (existing != null && (existing.status == 1 || existing.status == 2)) {
@@ -84,7 +86,6 @@ class DownloadManager {
       updates: Updates.statusAndProgress,
       retries: 3,
       allowPause: true,
-      headers: headers ?? {},
       displayName: title,
     );
 
@@ -111,12 +112,9 @@ class DownloadManager {
     }
   }
 
-  Future<void> _finalizeDownload(String taskId) async {
-    final video = await _storage.getDownload(taskId);
+  Future<void> _finalizeDownload(Task task) async {
+    final video = await _storage.getDownload(task.taskId);
     if (video == null) return;
-
-    final task = await FileDownloader().taskForId(taskId);
-    if (task == null) return;
 
     final path = await task.filePath();
     

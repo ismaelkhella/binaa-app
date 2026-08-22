@@ -53,6 +53,7 @@ class _LessonDetailsScreenState extends ConsumerState<LessonDetailsScreen> {
   bool _initialized = false;
   bool _isFullScreen = false;
   bool _isLocal = false;
+  bool _videoEnded = false;
   double _downloadProgress = -1;
   Duration _lastMarkDuration = Duration.zero;
   StreamSubscription? _downloadSub;
@@ -98,6 +99,47 @@ class _LessonDetailsScreenState extends ConsumerState<LessonDetailsScreen> {
         DeviceOrientation.portraitUp,
       ]);
       SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+    }
+  }
+
+  SubjectVideoItem? get _nextPlaylistVideo {
+    final playlist = widget.playlist;
+    if (playlist == null || playlist.isEmpty) return null;
+    final currentIndex = playlist.indexWhere((v) => v.id == widget.videoId);
+    if (currentIndex == -1) return null;
+    for (var i = currentIndex + 1; i < playlist.length; i++) {
+      if (!playlist[i].locked) return playlist[i];
+    }
+    return null;
+  }
+
+  void _onVideoEnded() {
+    if (mounted && !_videoEnded) {
+      setState(() => _videoEnded = true);
+    }
+  }
+
+  void _goToNextVideo() {
+    final next = _nextPlaylistVideo;
+    if (next == null) return;
+    Navigator.of(context).pushReplacement(
+      MaterialPageRoute(
+        builder: (_) => LessonDetailsScreen(
+          videoId: next.id,
+          playlist: widget.playlist,
+        ),
+      ),
+    );
+  }
+
+  void _rewatchVideo() {
+    setState(() => _videoEnded = false);
+    if (_playerType == PlayerType.native) {
+      _controller?.seekTo(Duration.zero);
+      _controller?.play();
+    } else if (_playerType == PlayerType.youtube) {
+      _ytController?.seekTo(Duration.zero);
+      _ytController?.play();
     }
   }
 
@@ -230,7 +272,7 @@ class _LessonDetailsScreenState extends ConsumerState<LessonDetailsScreen> {
             _ytController = YoutubePlayerController(
               initialVideoId: videoId,
               flags: YoutubePlayerFlags(
-                autoPlay: true,
+                autoPlay: false,
                 mute: false,
                 startAt: startPos,
               ),
@@ -255,7 +297,6 @@ class _LessonDetailsScreenState extends ConsumerState<LessonDetailsScreen> {
         if (startPos > 0) {
           await _controller!.seekTo(Duration(seconds: startPos));
         }
-        await _controller!.play();
         _controller!.addListener(_onTick);
       } catch (e) {
         debugPrint('Video initialization error: $e');
@@ -303,7 +344,12 @@ class _LessonDetailsScreenState extends ConsumerState<LessonDetailsScreen> {
     // Check if disposed again after getting controller
     if (!mounted) return;
     final pos = c.value.position;
-    
+    final duration = c.value.duration;
+
+    if (duration > Duration.zero && pos >= duration - const Duration(milliseconds: 500)) {
+      _onVideoEnded();
+    }
+
     // Save locally on each tick for responsiveness
     _saveProgress();
 
@@ -405,8 +451,6 @@ class _LessonDetailsScreenState extends ConsumerState<LessonDetailsScreen> {
         }
       } else if (download.status == 1) {
         // Currently downloading, allow pause/cancel/resume
-        final isPaused = download.status == 1 && _downloadProgress == -2; // We can use a special value for paused if we want, or check task status
-        
         final action = await showModalBottomSheet<String>(
           context: context,
           builder: (context) => SafeArea(
@@ -522,9 +566,11 @@ class _LessonDetailsScreenState extends ConsumerState<LessonDetailsScreen> {
         expiresAt: downloadToken?.expiresAt,
       );
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('بدأ التحميل في الخلفية')),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('بدأ التحميل في الخلفية')),
+        );
+      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -589,6 +635,11 @@ class _LessonDetailsScreenState extends ConsumerState<LessonDetailsScreen> {
             playbackRates: streamInfo.valueOrNull?.playbackRates,
             isFullScreen: _isFullScreen,
             onToggleFullScreen: _toggleFullScreen,
+            videoEnded: _videoEnded,
+            hasNextVideo: _nextPlaylistVideo != null,
+            onVideoEnded: _onVideoEnded,
+            onNextVideo: _goToNextVideo,
+            onRewatch: _rewatchVideo,
           );
 
           if (_isFullScreen) {
@@ -627,6 +678,21 @@ class _LessonDetailsScreenState extends ConsumerState<LessonDetailsScreen> {
                               _controller?.play();
                             }
                           },
+                        ),
+                      ],
+                      if (data.video.questions.isNotEmpty) ...[
+                        const SizedBox(height: AppDimensions.xl),
+                        AppPrimaryButton(
+                          label: 'اختبار قصير على الدرس',
+                          icon: Icons.quiz_outlined,
+                          secondary: true,
+                          onPressed: () => _showQuiz(
+                            TriggerQuiz(
+                              title: data.video.title,
+                              subjectId: '',
+                              questions: data.video.questions,
+                            ),
+                          ),
                         ),
                       ],
                       const SizedBox(height: AppDimensions.xl),
@@ -836,6 +902,11 @@ class _VideoPlayerArea extends StatefulWidget {
   final List<double>? playbackRates;
   final bool isFullScreen;
   final VoidCallback onToggleFullScreen;
+  final bool videoEnded;
+  final bool hasNextVideo;
+  final VoidCallback onVideoEnded;
+  final VoidCallback onNextVideo;
+  final VoidCallback onRewatch;
 
   const _VideoPlayerArea({
     this.controller,
@@ -848,6 +919,11 @@ class _VideoPlayerArea extends StatefulWidget {
     this.playbackRates,
     required this.isFullScreen,
     required this.onToggleFullScreen,
+    required this.videoEnded,
+    required this.hasNextVideo,
+    required this.onVideoEnded,
+    required this.onNextVideo,
+    required this.onRewatch,
   });
 
   @override
@@ -965,6 +1041,43 @@ class _VideoPlayerAreaState extends State<_VideoPlayerArea> {
               ),
             ),
           ),
+        if (widget.videoEnded &&
+            (widget.playerType == PlayerType.native ||
+                widget.playerType == PlayerType.youtube))
+          Positioned.fill(
+            child: Container(
+              color: Colors.black87,
+              child: Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (widget.hasNextVideo) ...[
+                      ElevatedButton.icon(
+                        onPressed: widget.onNextVideo,
+                        icon: const Icon(Icons.skip_next),
+                        label: const Text('الدرس التالي'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.primary,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 24, vertical: 14),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(30)),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                    ],
+                    TextButton.icon(
+                      onPressed: widget.onRewatch,
+                      icon: const Icon(Icons.replay, color: Colors.white),
+                      label: const Text('إعادة المشاهدة',
+                          style: TextStyle(color: Colors.white)),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
       ],
     );
 
@@ -996,6 +1109,7 @@ class _VideoPlayerAreaState extends State<_VideoPlayerArea> {
           showVideoProgressIndicator: true,
           progressIndicatorColor: AppColors.primary,
           onEnded: (meta) {
+            widget.onVideoEnded();
             if (widget.isFullScreen) _toggleFullScreen();
           },
         );

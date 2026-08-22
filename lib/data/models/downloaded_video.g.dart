@@ -32,53 +32,58 @@ const DownloadedVideoSchema = CollectionSchema(
       name: r'durationSec',
       type: IsarType.long,
     ),
-    r'isCompleted': PropertySchema(
+    r'expiresAt': PropertySchema(
       id: 3,
+      name: r'expiresAt',
+      type: IsarType.dateTime,
+    ),
+    r'isCompleted': PropertySchema(
+      id: 4,
       name: r'isCompleted',
       type: IsarType.bool,
     ),
     r'lastPositionSec': PropertySchema(
-      id: 4,
+      id: 5,
       name: r'lastPositionSec',
       type: IsarType.long,
     ),
     r'localPath': PropertySchema(
-      id: 5,
+      id: 6,
       name: r'localPath',
       type: IsarType.string,
     ),
     r'sizeInBytes': PropertySchema(
-      id: 6,
+      id: 7,
       name: r'sizeInBytes',
       type: IsarType.long,
     ),
     r'status': PropertySchema(
-      id: 7,
+      id: 8,
       name: r'status',
       type: IsarType.long,
     ),
     r'subHeader': PropertySchema(
-      id: 8,
+      id: 9,
       name: r'subHeader',
       type: IsarType.string,
     ),
     r'thumbnail': PropertySchema(
-      id: 9,
+      id: 10,
       name: r'thumbnail',
       type: IsarType.string,
     ),
     r'title': PropertySchema(
-      id: 10,
+      id: 11,
       name: r'title',
       type: IsarType.string,
     ),
     r'unitName': PropertySchema(
-      id: 11,
+      id: 12,
       name: r'unitName',
       type: IsarType.string,
     ),
     r'videoId': PropertySchema(
-      id: 12,
+      id: 13,
       name: r'videoId',
       type: IsarType.string,
     )
@@ -177,16 +182,17 @@ void _downloadedVideoSerialize(
   writer.writeString(offsets[0], object.checksum);
   writer.writeDateTime(offsets[1], object.downloadedAt);
   writer.writeLong(offsets[2], object.durationSec);
-  writer.writeBool(offsets[3], object.isCompleted);
-  writer.writeLong(offsets[4], object.lastPositionSec);
-  writer.writeString(offsets[5], object.localPath);
-  writer.writeLong(offsets[6], object.sizeInBytes);
-  writer.writeLong(offsets[7], object.status);
-  writer.writeString(offsets[8], object.subHeader);
-  writer.writeString(offsets[9], object.thumbnail);
-  writer.writeString(offsets[10], object.title);
-  writer.writeString(offsets[11], object.unitName);
-  writer.writeString(offsets[12], object.videoId);
+  writer.writeDateTime(offsets[3], object.expiresAt);
+  writer.writeBool(offsets[4], object.isCompleted);
+  writer.writeLong(offsets[5], object.lastPositionSec);
+  writer.writeString(offsets[6], object.localPath);
+  writer.writeLong(offsets[7], object.sizeInBytes);
+  writer.writeLong(offsets[8], object.status);
+  writer.writeString(offsets[9], object.subHeader);
+  writer.writeString(offsets[10], object.thumbnail);
+  writer.writeString(offsets[11], object.title);
+  writer.writeString(offsets[12], object.unitName);
+  writer.writeString(offsets[13], object.videoId);
 }
 
 DownloadedVideo _downloadedVideoDeserialize(
@@ -199,17 +205,18 @@ DownloadedVideo _downloadedVideoDeserialize(
   object.checksum = reader.readStringOrNull(offsets[0]);
   object.downloadedAt = reader.readDateTime(offsets[1]);
   object.durationSec = reader.readLong(offsets[2]);
+  object.expiresAt = reader.readDateTimeOrNull(offsets[3]);
   object.id = id;
-  object.isCompleted = reader.readBool(offsets[3]);
-  object.lastPositionSec = reader.readLong(offsets[4]);
-  object.localPath = reader.readString(offsets[5]);
-  object.sizeInBytes = reader.readLong(offsets[6]);
-  object.status = reader.readLong(offsets[7]);
-  object.subHeader = reader.readString(offsets[8]);
-  object.thumbnail = reader.readStringOrNull(offsets[9]);
-  object.title = reader.readString(offsets[10]);
-  object.unitName = reader.readStringOrNull(offsets[11]);
-  object.videoId = reader.readString(offsets[12]);
+  object.isCompleted = reader.readBool(offsets[4]);
+  object.lastPositionSec = reader.readLong(offsets[5]);
+  object.localPath = reader.readString(offsets[6]);
+  object.sizeInBytes = reader.readLong(offsets[7]);
+  object.status = reader.readLong(offsets[8]);
+  object.subHeader = reader.readString(offsets[9]);
+  object.thumbnail = reader.readStringOrNull(offsets[10]);
+  object.title = reader.readString(offsets[11]);
+  object.unitName = reader.readStringOrNull(offsets[12]);
+  object.videoId = reader.readString(offsets[13]);
   return object;
 }
 
@@ -227,24 +234,26 @@ P _downloadedVideoDeserializeProp<P>(
     case 2:
       return (reader.readLong(offset)) as P;
     case 3:
-      return (reader.readBool(offset)) as P;
+      return (reader.readDateTimeOrNull(offset)) as P;
     case 4:
-      return (reader.readLong(offset)) as P;
+      return (reader.readBool(offset)) as P;
     case 5:
-      return (reader.readString(offset)) as P;
-    case 6:
       return (reader.readLong(offset)) as P;
+    case 6:
+      return (reader.readString(offset)) as P;
     case 7:
       return (reader.readLong(offset)) as P;
     case 8:
-      return (reader.readString(offset)) as P;
+      return (reader.readLong(offset)) as P;
     case 9:
-      return (reader.readStringOrNull(offset)) as P;
-    case 10:
       return (reader.readString(offset)) as P;
-    case 11:
+    case 10:
       return (reader.readStringOrNull(offset)) as P;
+    case 11:
+      return (reader.readString(offset)) as P;
     case 12:
+      return (reader.readStringOrNull(offset)) as P;
+    case 13:
       return (reader.readString(offset)) as P;
     default:
       throw IsarError('Unknown property with id $propertyId');
@@ -859,6 +868,80 @@ extension DownloadedVideoQueryFilter
     return QueryBuilder.apply(this, (query) {
       return query.addFilterCondition(FilterCondition.between(
         property: r'durationSec',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
+      ));
+    });
+  }
+
+  QueryBuilder<DownloadedVideo, DownloadedVideo, QAfterFilterCondition>
+      expiresAtIsNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNull(
+        property: r'expiresAt',
+      ));
+    });
+  }
+
+  QueryBuilder<DownloadedVideo, DownloadedVideo, QAfterFilterCondition>
+      expiresAtIsNotNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNotNull(
+        property: r'expiresAt',
+      ));
+    });
+  }
+
+  QueryBuilder<DownloadedVideo, DownloadedVideo, QAfterFilterCondition>
+      expiresAtEqualTo(DateTime? value) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'expiresAt',
+        value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<DownloadedVideo, DownloadedVideo, QAfterFilterCondition>
+      expiresAtGreaterThan(
+    DateTime? value, {
+    bool include = false,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'expiresAt',
+        value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<DownloadedVideo, DownloadedVideo, QAfterFilterCondition>
+      expiresAtLessThan(
+    DateTime? value, {
+    bool include = false,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'expiresAt',
+        value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<DownloadedVideo, DownloadedVideo, QAfterFilterCondition>
+      expiresAtBetween(
+    DateTime? lower,
+    DateTime? upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'expiresAt',
         lower: lower,
         includeLower: includeLower,
         upper: upper,
@@ -2005,6 +2088,20 @@ extension DownloadedVideoQuerySortBy
   }
 
   QueryBuilder<DownloadedVideo, DownloadedVideo, QAfterSortBy>
+      sortByExpiresAt() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'expiresAt', Sort.asc);
+    });
+  }
+
+  QueryBuilder<DownloadedVideo, DownloadedVideo, QAfterSortBy>
+      sortByExpiresAtDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'expiresAt', Sort.desc);
+    });
+  }
+
+  QueryBuilder<DownloadedVideo, DownloadedVideo, QAfterSortBy>
       sortByIsCompleted() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'isCompleted', Sort.asc);
@@ -2186,6 +2283,20 @@ extension DownloadedVideoQuerySortThenBy
     });
   }
 
+  QueryBuilder<DownloadedVideo, DownloadedVideo, QAfterSortBy>
+      thenByExpiresAt() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'expiresAt', Sort.asc);
+    });
+  }
+
+  QueryBuilder<DownloadedVideo, DownloadedVideo, QAfterSortBy>
+      thenByExpiresAtDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'expiresAt', Sort.desc);
+    });
+  }
+
   QueryBuilder<DownloadedVideo, DownloadedVideo, QAfterSortBy> thenById() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'id', Sort.asc);
@@ -2360,6 +2471,13 @@ extension DownloadedVideoQueryWhereDistinct
   }
 
   QueryBuilder<DownloadedVideo, DownloadedVideo, QDistinct>
+      distinctByExpiresAt() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'expiresAt');
+    });
+  }
+
+  QueryBuilder<DownloadedVideo, DownloadedVideo, QDistinct>
       distinctByIsCompleted() {
     return QueryBuilder.apply(this, (query) {
       return query.addDistinctBy(r'isCompleted');
@@ -2453,6 +2571,13 @@ extension DownloadedVideoQueryProperty
   QueryBuilder<DownloadedVideo, int, QQueryOperations> durationSecProperty() {
     return QueryBuilder.apply(this, (query) {
       return query.addPropertyName(r'durationSec');
+    });
+  }
+
+  QueryBuilder<DownloadedVideo, DateTime?, QQueryOperations>
+      expiresAtProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'expiresAt');
     });
   }
 
