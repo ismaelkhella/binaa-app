@@ -27,6 +27,7 @@ class ApiEndpoints {
   static String video(String id) => '/videos/$id';
   static String videoStream(String id) => '/videos/$id/stream';
   static String videoMarkViewed(String id) => '/videos/$id/mark-viewed';
+  static String videoPosition(String id) => '/videos/$id/position';
   static String videoDownloadToken(String id) => '/videos/$id/download-token';
 
   // ── Subscriptions ────────────────────────────────────────

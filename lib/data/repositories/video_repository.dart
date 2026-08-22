@@ -49,6 +49,18 @@ class VideoRepository {
     });
   }
 
+  /// Best-effort playback position sync, used to power "Continue Learning"
+  /// on the dashboard. Callers should not let failures (e.g. offline
+  /// playback) interrupt video playback.
+  Future<void> updatePosition(String videoId, int positionSec) async {
+    return runApiCall(() async {
+      await _dio.post(
+        ApiEndpoints.videoPosition(videoId),
+        data: {'positionSec': positionSec},
+      );
+    });
+  }
+
   Future<DownloadToken> downloadToken(String videoId) async {
     return runApiCall(() async {
       final res = await _dio.get(ApiEndpoints.videoDownloadToken(videoId));

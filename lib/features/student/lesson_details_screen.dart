@@ -358,6 +358,14 @@ class _LessonDetailsScreenState extends ConsumerState<LessonDetailsScreen> {
       // Use ref.read outside the async gap if possible or check mounted
       if (mounted) {
         ref.read(offlineStorageProvider).updatePosition(widget.videoId, pos.inSeconds);
+
+        // Sync to server for "Continue Learning" on the dashboard. Best
+        // effort only — never let a network failure (e.g. offline
+        // playback) interrupt local/offline playback.
+        ref
+            .read(videoRepositoryProvider)
+            .updatePosition(widget.videoId, pos.inSeconds)
+            .catchError((_) {});
       }
     }
 
