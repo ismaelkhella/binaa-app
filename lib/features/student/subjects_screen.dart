@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_dimensions.dart';
@@ -54,6 +55,11 @@ class _SubjectsScreenState extends ConsumerState<SubjectsScreen> {
         title: const Text('المواد الدراسية'),
         centerTitle: true,
         actions: [
+          IconButton(
+            icon: const Icon(Icons.download_for_offline_outlined),
+            onPressed: () => context.push('/downloads'),
+            tooltip: 'تحميلاتي',
+          ),
           IconButton(
             icon: const Icon(Icons.notifications_none_outlined),
             onPressed: () {},

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_dimensions.dart';
@@ -62,6 +63,13 @@ class _SubjectVideosScreenState extends ConsumerState<SubjectVideosScreen> {
     return Scaffold(
       appBar: AppBar(
         title: Text(widget.name),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.download_for_offline_outlined),
+            onPressed: () => context.push('/downloads'),
+            tooltip: 'تحميلاتي',
+          ),
+        ],
       ),
       body: FutureBuilder<SubjectVideosResponse>(
         future: _future,
